@@ -55,8 +55,7 @@ fn cmake_params_android() -> &'static [(&'static str, &'static str)] {
     &[]
 }
 
-const CMAKE_PARAMS_APPLE: &[(&str, &[(&str, &str)])] = &[
-    // iOS
+const CMAKE_PARAMS_IOS: &[(&str, &[(&str, &str)])] = &[
     (
         "aarch64-apple-ios",
         &[
@@ -78,41 +77,26 @@ const CMAKE_PARAMS_APPLE: &[(&str, &[(&str, &str)])] = &[
             ("CMAKE_OSX_SYSROOT", "iphonesimulator"),
         ],
     ),
-    // macOS
-    (
-        "aarch64-apple-darwin",
-        &[
-            ("CMAKE_OSX_ARCHITECTURES", "arm64"),
-            ("CMAKE_OSX_SYSROOT", "macosx"),
-        ],
-    ),
-    (
-        "x86_64-apple-darwin",
-        &[
-            ("CMAKE_OSX_ARCHITECTURES", "x86_64"),
-            ("CMAKE_OSX_SYSROOT", "macosx"),
-        ],
-    ),
 ];
 
-fn cmake_params_apple() -> &'static [(&'static str, &'static str)] {
+fn cmake_params_ios() -> &'static [(&'static str, &'static str)] {
     let target = env::var("TARGET").unwrap();
-    for (next_target, params) in CMAKE_PARAMS_APPLE {
-        if *next_target == target {
+    for (ios_target, params) in CMAKE_PARAMS_IOS {
+        if *ios_target == target {
             return params;
         }
     }
     &[]
 }
 
-fn get_apple_sdk_name() -> &'static str {
-    for (name, value) in cmake_params_apple() {
+fn get_ios_sdk_name() -> &'static str {
+    for (name, value) in cmake_params_ios() {
         if *name == "CMAKE_OSX_SYSROOT" {
             return value;
         }
     }
     let target = env::var("TARGET").unwrap();
-    panic!("cannot find SDK for {} in CMAKE_PARAMS_APPLE", target);
+    panic!("cannot find iOS SDK for {} in CMAKE_PARAMS_IOS", target);
 }
 
 /// Returns an absolute path to the BoringSSL source.
@@ -234,15 +218,8 @@ fn get_boringssl_cmake_config() -> cmake::Config {
                 boringssl_cmake.define("ANDROID_STL", "c++_shared");
             }
 
-            "macos" => {
-                for (name, value) in cmake_params_apple() {
-                    eprintln!("macos arch={} add {}={}", arch, name, value);
-                    boringssl_cmake.define(name, value);
-                }
-            }
-
             "ios" => {
-                for (name, value) in cmake_params_apple() {
+                for (name, value) in cmake_params_ios() {
                     eprintln!("ios arch={} add {}={}", arch, name, value);
                     boringssl_cmake.define(name, value);
                 }
@@ -389,10 +366,10 @@ fn get_extra_clang_args_for_bindgen() -> Vec<String> {
     // Add platform-specific parameters.
     #[allow(clippy::single_match)]
     match os.as_ref() {
-        "ios" | "macos" => {
-            // When cross-compiling for Apple targets, tell bindgen to use SDK sysroot,
+        "ios" => {
+            // When cross-compiling for iOS, tell bindgen to use iOS sysroot,
             // and *don't* use system headers of the host macOS.
-            let sdk = get_apple_sdk_name();
+            let sdk = get_ios_sdk_name();
             let output = std::process::Command::new("xcrun")
                 .args(["--show-sdk-path", "--sdk", sdk])
                 .output()
